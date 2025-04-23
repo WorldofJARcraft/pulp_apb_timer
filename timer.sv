@@ -49,19 +49,26 @@ module timer
 
     logic [2:0] prescaler_int;
 
+    logic [1:0] irq_q, irq_d;
+
     //irq logic
     always_comb
     begin
-        irq_o = 2'b0;
+        irq_d = irq_q;
 
         // overlow irq
         if (regs_q[`REG_TIMER] == 32'hffff_ffff)
-            irq_o[0] = 1'b1;
+            irq_d[0] = 1'b1;
 
         // compare match irq if compare reg ist set
-        if (regs_q[`REG_CMP] != 'b0 && regs_q[`REG_TIMER] == regs_q[`REG_CMP])
-            irq_o[1] = 1'b1;
+        if (regs_q[`REG_CMP] != 'b0 && regs_q[`REG_TIMER] >= regs_q[`REG_CMP])
+            irq_d[1] = 1'b1;
 
+        // control register written - interrupts cleared
+        if(PSEL && PENABLE && PWRITE && register_adr == `REG_TIMER_CTRL)
+            irq_d = 2'b0;
+
+        irq_o = irq_d;
     end
 
     assign prescaler_int = regs_q[`REG_TIMER_CTRL][`PRESCALER_STOPBIT:`PRESCALER_STARTBIT];
@@ -71,8 +78,8 @@ module timer
         regs_n = regs_q;
         cycle_counter_n = cycle_counter_q + 1;
 
-        // reset timer after cmp or overflow
-        if (irq_o[0] == 1'b1 || irq_o[1] == 1'b1)
+        // reset timer after overflow
+        if (irq_o[0] == 1'b1)
             regs_n[`REG_TIMER] = 1'b0;
         else if(regs_q[`REG_TIMER_CTRL][`ENABLE_BIT] && prescaler_int != 'b0 && prescaler_int == cycle_counter_q) // prescaler
         begin
@@ -99,7 +106,6 @@ module timer
                 `REG_CMP:
                 begin
                     regs_n[`REG_CMP] = PWDATA;
-                    regs_n[`REG_TIMER] = 32'b0; // reset timer if compare register is written
                 end
             endcase
         end
@@ -133,11 +139,13 @@ module timer
         begin
             regs_q          <= '{default: 32'b0};
             cycle_counter_q <= 32'b0;
+            irq_q           <= 2'b0;
         end
         else
         begin
             regs_q          <= regs_n;
             cycle_counter_q <= cycle_counter_n;
+            irq_q           <= irq_d;
         end
     end
 
