@@ -64,8 +64,8 @@ module timer
         if (regs_q[`REG_CMP] != 'b0 && regs_q[`REG_TIMER] >= regs_q[`REG_CMP])
             irq_d[1] = 1'b1;
 
-        // control register written - interrupts cleared
-        if(PSEL && PENABLE && PWRITE && register_adr == `REG_TIMER_CTRL)
+        // control or compare register written - interrupts cleared
+        if(PSEL && PENABLE && PWRITE && (register_adr == `REG_TIMER_CTRL || register_adr == `REG_CMP))
             irq_d = 2'b0;
 
         irq_o = irq_d;
